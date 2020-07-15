@@ -1,2 +1,2 @@
 # apex-util-wrap
- Generic functions and procedures which can be used in APEX applications
+ Generic functions and procedures which can be used in APEX applications. To start with, I have included APEX_UTIL_WRAP.SEND_MAIL (wrapper function on APEX_MAIL.SEND) which supports tabular data in E-Mail templates. You can read about it in below blogpost. https://srihariravva.blogspot.com/2020/05/email-templates-tabular-data.html
