@@ -1,8 +1,8 @@
 CREATE OR REPLACE PACKAGE apex_util_wrap AS
 -- Description:
 --    Generic functions and procedures which can be used in APEX applications
---    Note: EXCEPTION WHEN OTHERS are not handled in this package. Users are free to add their own exception handling code. 
--- 
+--    Note: EXCEPTION WHEN OTHERS are not handled in this package. Users are free to add their own exception handling code.
+--
 -- Modification History:
 -- =====================
 -- Date        Author                    Remarks
@@ -10,6 +10,7 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
 -- 15-MAY-2020 Srihari Ravva             Initial version
 -- 04-OCT-2020 Srihari Ravva             Added send_mail procedure,
 --                                       removed p_template_static_id parameter for merge_placeholders function
+-- 26-OCT-2020 Srihari Ravva             Added download_blob procedure and zip related functions
 --
 
   -- define global variables and constants
@@ -26,8 +27,8 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
   -- Returns          : placehodlers CLOB which can be used with APEX_MAIL package
   --
     FUNCTION merge_placeholders(
-        p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
+        p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
     )RETURN CLOB;
 
   -- Name             : send_mail
@@ -50,16 +51,17 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
   --
   -- Returns          : mail id, using which attachments can be added using APEX_MAIL.ADD_ATTACHMENT
   --
+
     FUNCTION send_mail(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_to                   IN       VARCHAR2
-        ,p_cc                   IN       VARCHAR2 DEFAULT NULL
-        ,p_bcc                  IN       VARCHAR2 DEFAULT NULL
-        ,p_from                 IN       VARCHAR2 DEFAULT NULL
-        ,p_replyto              IN       VARCHAR2 DEFAULT NULL
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_to                   IN                     VARCHAR2
+        ,p_cc                   IN                     VARCHAR2 DEFAULT NULL
+        ,p_bcc                  IN                     VARCHAR2 DEFAULT NULL
+        ,p_from                 IN                     VARCHAR2 DEFAULT NULL
+        ,p_replyto              IN                     VARCHAR2 DEFAULT NULL
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
     )RETURN NUMBER;
 
   -- Name             : send_mail
@@ -82,16 +84,17 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
   --
   -- Returns          : n/a
   --
+
     PROCEDURE send_mail(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_to                   IN       VARCHAR2
-        ,p_cc                   IN       VARCHAR2 DEFAULT NULL
-        ,p_bcc                  IN       VARCHAR2 DEFAULT NULL
-        ,p_from                 IN       VARCHAR2 DEFAULT NULL
-        ,p_replyto              IN       VARCHAR2 DEFAULT NULL
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_to                   IN                     VARCHAR2
+        ,p_cc                   IN                     VARCHAR2 DEFAULT NULL
+        ,p_bcc                  IN                     VARCHAR2 DEFAULT NULL
+        ,p_from                 IN                     VARCHAR2 DEFAULT NULL
+        ,p_replyto              IN                     VARCHAR2 DEFAULT NULL
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
     );
 
   -- Name             : preview_template
@@ -114,13 +117,77 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
   --
   -- Returns          : p_subject, p_html and p_text as OUT parameters, same as APEX_MAIL.PREPARE_TEMPLATE
   --
+
     PROCEDURE preview_template(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
-        ,p_subject              OUT      VARCHAR2
-        ,p_html                 OUT      CLOB
-        ,p_text                 OUT      CLOB
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
+        ,p_subject              OUT                    VARCHAR2
+        ,p_html                 OUT                    CLOB
+        ,p_text                 OUT                    CLOB
     );
+
+  -- Name             : download_blob
+  -- Description      : procedure to download given BLOB file from browser. Uses SYS.WPG_DOCLOAD.DOWNLOAD_FILE
+  -- Parameters       : p_blob_content - File content as BLOB
+  --                    p_file_name - File name to be used for the downloaded file. e.g. demo.zip
+  --                    p_mime_type - Used as MIME_HEADER, default value application/octet-stream
+  --                    p_disposition - Content-Disposition value, default value attachment
+  -- Returns          : n/a
+  --
+
+    PROCEDURE download_blob(
+        p_blob_content   IN OUT           BLOB
+        ,p_file_name      IN               VARCHAR2
+        ,p_mime_type      IN               VARCHAR2 DEFAULT 'application/octet-stream'
+        ,p_disposition    IN               VARCHAR2 DEFAULT 'attachment'
+    );
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query -
+  --                      SQL query passed as string with two columns.
+  --                      First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                      e.g. SELECT file_name, file_content FROM files_tables
+  --
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query IN   VARCHAR2
+    )RETURN BLOB;
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query -
+  --                      SQL query passed as string with two columns.
+  --                      First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                      e.g. SELECT file_name, file_content FROM files_tables
+  --                    p_bind_1 -
+  --                      Value for bind variables used in SQL query.
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query   IN            VARCHAR2
+        ,p_bind_1      IN            VARCHAR2
+    )RETURN BLOB;
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query - SQL query passed as string with two columns.
+  --                                  First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                                  e.g. SELECT file_name, file_content FROM files_tables
+  --                    p_bind_var_names  - Array of bind variables used in SQL query
+  --                    p_bind_var_values - Array of bind variable value used in SQL query
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query         IN                  VARCHAR2
+        ,p_bind_var_names    IN                  apex_t_varchar2
+        ,p_bind_var_values   IN                  apex_t_varchar2
+    )RETURN BLOB;
+
 END apex_util_wrap;

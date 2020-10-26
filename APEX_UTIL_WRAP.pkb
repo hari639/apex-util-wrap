@@ -1,8 +1,8 @@
 CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 -- Description:
 --    Generic functions and procedures which can be used in APEX applications
---    Note: EXCEPTION WHEN OTHERS are not handled in this package. Users are free to add their own exception handling code. 
--- 
+--    Note: EXCEPTION WHEN OTHERS are not handled in this package. Users are free to add their own exception handling code.
+--
 -- Modification History:
 -- =====================
 -- Date        Author                    Remarks
@@ -10,6 +10,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 -- 15-MAY-2020 Srihari Ravva             Initial version
 -- 04-OCT-2020 Srihari Ravva             Added send_mail procedure,
 --                                       removed p_template_static_id parameter for merge_placeholders function
+-- 26-OCT-2020 Srihari Ravva             Added download_blob procedure and zip related functions
 --
 
   -- Name             : get_html_table
@@ -22,13 +23,13 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
   --
 
     FUNCTION get_html_table(
-        p_substitution_string   IN       VARCHAR2
-        ,p_sql_query             IN       VARCHAR2
-        ,p_bind_variables        IN       VARCHAR2
-        ,p_values                IN       VARCHAR2
-        ,p_limit_rows            IN       NUMBER
-        ,p_no_data_found         IN       VARCHAR2
-        ,p_more_data_found       IN       VARCHAR2
+        p_substitution_string   IN                      VARCHAR2
+        ,p_sql_query             IN                      VARCHAR2
+        ,p_bind_variables        IN                      VARCHAR2
+        ,p_values                IN                      VARCHAR2
+        ,p_limit_rows            IN                      NUMBER
+        ,p_no_data_found         IN                      VARCHAR2
+        ,p_more_data_found       IN                      VARCHAR2
     )RETURN CLOB IS
 
         l_cursor_id            PLS_INTEGER;
@@ -62,8 +63,14 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
         -- In any case when APP_DATE_FORMAT is NULL, fall back to default date format
         -- l_date_format := COALESCE(v('APP_DATE_TIME_FORMAT'),c_default_date_format);
         l_list_sep := c_default_list_sep;
-        l_no_data_found := COALESCE(p_no_data_found,c_default_no_data_found);
-        l_more_data_found := COALESCE(p_more_data_found,c_default_more_data_found);
+        l_no_data_found := coalesce(
+            p_no_data_found
+            ,c_default_no_data_found
+        );
+        l_more_data_found := coalesce(
+            p_more_data_found
+            ,c_default_more_data_found
+        );
         /* open a cursor */
         l_cursor_id := dbms_sql.open_cursor;
         /* parse input SQL query */
@@ -95,6 +102,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 
         END IF;
         -- describe the query to find out number of columns and column names
+
         dbms_sql.describe_columns(
             l_cursor_id
             ,l_col_count
@@ -103,7 +111,10 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
         /* define columns */
         -- also construct html header row
         FOR col_idx IN 1..l_col_count LOOP
-            IF l_rec_tab(col_idx).col_type = 1 THEN
+            IF l_rec_tab(col_idx).col_type IN(
+                dbms_types.typecode_varchar
+                ,dbms_types.typecode_varchar2
+            )THEN
             -- VARCHAR2
                 dbms_sql.define_column(
                     l_cursor_id
@@ -111,14 +122,14 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                     ,l_vc2_value
                     ,4000
                 );
-            ELSIF l_rec_tab(col_idx).col_type = 2 THEN
+            ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_number THEN
             -- NUMBER
                 dbms_sql.define_column(
                     l_cursor_id
                     ,col_idx
                     ,l_num_value
                 );
-            ELSIF l_rec_tab(col_idx).col_type = 12 THEN
+            ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_date THEN
             -- DATE
                 dbms_sql.define_column(
                     l_cursor_id
@@ -137,6 +148,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
             -- header row
             -- col_name contains column names from SQL query
             -- if alias are specified in SQL query, then we will get alias in col_name
+
             l_temp := l_temp
                       || replace(
                 replace(
@@ -150,6 +162,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 
         END LOOP;
         -- append header row to output
+
         l_temp := replace(
             replace(
                 l_tr_template
@@ -170,14 +183,17 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
             -- for each row, loop through columns and get column values
             FOR col_idx IN 1..l_col_count LOOP
             -- handle different data types
-                IF l_rec_tab(col_idx).col_type = 1 THEN
+                IF l_rec_tab(col_idx).col_type IN(
+                    dbms_types.typecode_varchar
+                    ,dbms_types.typecode_varchar2
+                )THEN
                 -- VARCHAR2
                     dbms_sql.column_value(
                         l_cursor_id
                         ,col_idx
                         ,l_vc2_value
                     );
-                ELSIF l_rec_tab(col_idx).col_type = 2 THEN
+                ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_number THEN
                 -- NUMBER
                     dbms_sql.column_value(
                         l_cursor_id
@@ -185,7 +201,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                         ,l_num_value
                     );
                     l_vc2_value := TO_CHAR(l_num_value);
-                ELSIF l_rec_tab(col_idx).col_type = 12 THEN
+                ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_date THEN
                 -- DATE
                     dbms_sql.column_value(
                         l_cursor_id
@@ -196,9 +212,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                         l_date_value
                         ,l_date_format
                     );*/
-                    l_vc2_value := TO_CHAR(
-                        l_date_value
-                    );
+                    l_vc2_value := TO_CHAR(l_date_value);
                 ELSE
                 -- consider as VARCHAR2, limit size to 4000
                     dbms_sql.column_value(
@@ -208,6 +222,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                     );
                 END IF;
                 -- prepare data row
+
                 l_temp := l_temp
                           || replace(
                     l_td_template
@@ -216,6 +231,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                 );
             END LOOP;
             -- append data row to output
+
             l_temp := replace(
                 replace(
                     l_tr_template
@@ -244,6 +260,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 
         -- query returned no rows, then show no data found message
         -- OR there are still more rows to fetchm then show more data found message
+
         IF l_row_count = 0 OR(l_row_count = p_limit_rows AND dbms_sql.fetch_rows(l_cursor_id)> 0)THEN
             l_temp := replace(
                 replace(
@@ -274,6 +291,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
         END IF;
 
         /* close cursor */
+
         dbms_sql.close_cursor(l_cursor_id);
         /*
         l_html_table := replace(
@@ -286,7 +304,11 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
             ,l_html_table
         );
         */
-        l_html_table := '<table class="tab-dynamic-data" id="'||lower(p_substitution_string)||'"><tbody>'||l_html_table||'</tbody></table>';
+        l_html_table := '<table class="tab-dynamic-data" id="'
+                        || lower(p_substitution_string)
+                        || '"><tbody>'
+                        || l_html_table
+                        || '</tbody></table>';
 
         RETURN l_html_table;
     EXCEPTION
@@ -306,9 +328,10 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
   --                    p_table_placeholders - table placehodlers
   -- Returns          : placehodlers CLOB which can be used with APEX_MAIL package
   --
+
     FUNCTION merge_placeholders(
-        p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
+        p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
     )RETURN CLOB IS
 
         l_placeholders          CLOB;
@@ -350,8 +373,10 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
                         ,l_value
                     );
                 END LOOP;
+
             END IF;
            -- parse table placehodlers JSON
+
             apex_json.parse(
                 p_values   => l_tables_json
                 ,p_source   => p_table_placeholders
@@ -477,15 +502,15 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
   --
 
     FUNCTION send_mail(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_to                   IN       VARCHAR2
-        ,p_cc                   IN       VARCHAR2 DEFAULT NULL
-        ,p_bcc                  IN       VARCHAR2 DEFAULT NULL
-        ,p_from                 IN       VARCHAR2 DEFAULT NULL
-        ,p_replyto              IN       VARCHAR2 DEFAULT NULL
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_to                   IN                     VARCHAR2
+        ,p_cc                   IN                     VARCHAR2 DEFAULT NULL
+        ,p_bcc                  IN                     VARCHAR2 DEFAULT NULL
+        ,p_from                 IN                     VARCHAR2 DEFAULT NULL
+        ,p_replyto              IN                     VARCHAR2 DEFAULT NULL
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
     )RETURN NUMBER IS
         l_mail_id        NUMBER;
         l_placeholders   CLOB;
@@ -532,30 +557,30 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
   --
   -- Returns          : n/a
   --
+
     PROCEDURE send_mail(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_to                   IN       VARCHAR2
-        ,p_cc                   IN       VARCHAR2 DEFAULT NULL
-        ,p_bcc                  IN       VARCHAR2 DEFAULT NULL
-        ,p_from                 IN       VARCHAR2 DEFAULT NULL
-        ,p_replyto              IN       VARCHAR2 DEFAULT NULL
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
-    )
-    IS
-        l_mail_id        NUMBER;
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_to                   IN                     VARCHAR2
+        ,p_cc                   IN                     VARCHAR2 DEFAULT NULL
+        ,p_bcc                  IN                     VARCHAR2 DEFAULT NULL
+        ,p_from                 IN                     VARCHAR2 DEFAULT NULL
+        ,p_replyto              IN                     VARCHAR2 DEFAULT NULL
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
+    )IS
+        l_mail_id   NUMBER;
     BEGIN
         l_mail_id := send_mail(
-            p_template_static_id  => p_template_static_id
-            ,p_placeholders        => p_placeholders
-            ,p_table_placeholders  => p_table_placeholders
-            ,p_to                  => p_to
-            ,p_cc                  => p_cc
-            ,p_bcc                 => p_bcc
-            ,p_from                => p_from
-            ,p_replyto             => p_replyto
-            ,p_application_id      => p_application_id
+            p_template_static_id   => p_template_static_id
+            ,p_placeholders         => p_placeholders
+            ,p_table_placeholders   => p_table_placeholders
+            ,p_to                   => p_to
+            ,p_cc                   => p_cc
+            ,p_bcc                  => p_bcc
+            ,p_from                 => p_from
+            ,p_replyto              => p_replyto
+            ,p_application_id       => p_application_id
         );
     END send_mail;
 
@@ -581,13 +606,13 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
   --
 
     PROCEDURE preview_template(
-        p_template_static_id   IN       VARCHAR2
-        ,p_placeholders         IN       CLOB
-        ,p_table_placeholders   IN       CLOB
-        ,p_application_id       IN       NUMBER DEFAULT apex_application.g_flow_id
-        ,p_subject              OUT      VARCHAR2
-        ,p_html                 OUT      CLOB
-        ,p_text                 OUT      CLOB
+        p_template_static_id   IN                     VARCHAR2
+        ,p_placeholders         IN                     CLOB
+        ,p_table_placeholders   IN                     CLOB
+        ,p_application_id       IN                     NUMBER DEFAULT apex_application.g_flow_id
+        ,p_subject              OUT                    VARCHAR2
+        ,p_html                 OUT                    CLOB
+        ,p_text                 OUT                    CLOB
     )IS
         l_placeholders   CLOB;
     BEGIN
@@ -607,5 +632,262 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
             ,p_html             => p_html
             ,p_text             => p_text
         );
+
     END preview_template;
+
+  -- Name             : download_blob
+  -- Description      : procedure to download given BLOB file from browser. Uses SYS.WPG_DOCLOAD.DOWNLOAD_FILE
+  -- Parameters       : p_blob_content - File content as BLOB
+  --                    p_file_name - File name to be used for the downloaded file. e.g. demo.zip
+  --                    p_mime_type - Used as MIME_HEADER, default value application/octet-stream
+  --                    p_disposition - Content-Disposition value, default value attachment
+  -- Returns          : n/a
+  --
+
+    PROCEDURE download_blob(
+        p_blob_content   IN OUT           BLOB
+        ,p_file_name      IN               VARCHAR2
+        ,p_mime_type      IN               VARCHAR2 DEFAULT 'application/octet-stream'
+        ,p_disposition    IN               VARCHAR2 DEFAULT 'attachment'
+    )IS
+    BEGIN
+        IF p_blob_content IS NULL THEN
+        -- do nothing
+          RETURN;
+        END IF;
+      -- print headers for file download
+        sys.htp.init;
+        sys.owa_util.mime_header(
+            p_mime_type
+            ,false
+        );
+        sys.htp.p('Content-Length: '
+                  || sys.dbms_lob.getlength(p_blob_content));
+
+        sys.htp.p('Content-Disposition: '
+                  || p_disposition
+                  || '; filename="'
+                  || p_file_name
+                  || '"');
+
+        sys.owa_util.http_header_close;
+      -- start downloading the file
+        sys.wpg_docload.download_file(p_blob_content);
+    END download_blob;
+
+  -- Name             : get_zip_internal
+  -- Description      : function to generate zip file from reference cursor
+  -- Parameters       : p_cur_files - SYS_REFCURSOR
+  --
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip_internal(
+        p_cur_files IN   SYS_REFCURSOR
+    )RETURN BLOB IS
+        l_zip_file       BLOB;
+        l_file_name      VARCHAR2(255);
+        l_file_content   BLOB;
+    BEGIN
+        LOOP
+            FETCH p_cur_files INTO
+                l_file_name
+            ,l_file_content;
+            EXIT WHEN p_cur_files%notfound;
+            apex_zip.add_file(
+                p_zipped_blob   => l_zip_file
+                ,p_file_name     => l_file_name
+                ,p_content       => l_file_content
+            );
+
+        END LOOP;
+
+        BEGIN
+            apex_zip.finish(p_zipped_blob => l_zip_file);
+        EXCEPTION WHEN VALUE_ERROR THEN
+        -- if there is no file added so far, then apex_zip.finish raises VALUE_ERROR
+        -- do nothing
+            NULL;
+        END;
+        RETURN l_zip_file;
+    END get_zip_internal;
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query -
+  --                      SQL query passed as string with two columns.
+  --                      First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                      e.g. SELECT file_name, file_content FROM files_tables
+  --
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query IN   VARCHAR2
+    )RETURN BLOB IS
+        l_zip_file   BLOB;
+        c_files      SYS_REFCURSOR;
+    BEGIN
+        OPEN c_files FOR p_sql_query;
+
+        l_zip_file := get_zip_internal(c_files);
+        CLOSE c_files;
+        RETURN l_zip_file;
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF c_files%isopen THEN
+                CLOSE c_files;
+            END IF;
+            RAISE;
+    END get_zip;
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query -
+  --                      SQL query passed as string with two columns.
+  --                      First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                      e.g. SELECT file_name, file_content FROM files_tables
+  --                    p_bind_1 -
+  --                      Value for bind variables used in SQL query.
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query   IN            VARCHAR2
+        ,p_bind_1      IN            VARCHAR2
+    )RETURN BLOB IS
+        l_zip_file   BLOB;
+        c_files      SYS_REFCURSOR;
+    BEGIN
+        OPEN c_files FOR p_sql_query
+            USING p_bind_1;
+
+        l_zip_file := get_zip_internal(c_files);
+        CLOSE c_files;
+        RETURN l_zip_file;
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF c_files%isopen THEN
+                CLOSE c_files;
+            END IF;
+            RAISE;
+    END get_zip;
+
+  -- Name             : get_zip
+  -- Description      : function to generate zip file based on SQL query, uses APEX_ZIP.ADD_FILE
+  -- Parameters       : p_sql_query - SQL query passed as string with two columns.
+  --                                  First column should be file_name (VARCHAR2) and second column should be file_content (BLOB)
+  --                                  e.g. SELECT file_name, file_content FROM files_tables
+  --                    p_bind_var_names  - Array of bind variables used in SQL query
+  --                    p_bind_var_values - Array of bind variable value used in SQL query
+  -- Returns          : zip file as BLOB
+  --
+
+    FUNCTION get_zip(
+        p_sql_query         IN                  VARCHAR2
+        ,p_bind_var_names    IN                  apex_t_varchar2
+        ,p_bind_var_values   IN                  apex_t_varchar2
+    )RETURN BLOB IS
+
+        l_zip_file         BLOB;
+        l_cursor_id        PLS_INTEGER;
+        l_execute_output   PLS_INTEGER;
+        l_col_count        PLS_INTEGER;
+        l_rec_tab          dbms_sql.desc_tab;
+        l_file_name        VARCHAR2(255);
+        l_file_content     BLOB;
+    BEGIN
+        -- open a cursor
+        l_cursor_id := dbms_sql.open_cursor;
+        -- parse input SQL query
+        dbms_sql.parse(
+            l_cursor_id
+            ,p_sql_query
+            ,dbms_sql.native
+        );
+        -- attach bind variables to values
+        FOR var_idx IN 1..p_bind_var_names.count LOOP
+            dbms_sql.bind_variable(
+                l_cursor_id
+                ,p_bind_var_names(var_idx)
+                ,p_bind_var_values(var_idx)
+            );
+        END LOOP;
+        -- describe the query to find out number of columns and column names
+
+        dbms_sql.describe_columns(
+            l_cursor_id
+            ,l_col_count
+            ,l_rec_tab
+        );
+        -- define columns
+        FOR col_idx IN 1..l_col_count LOOP
+            IF l_rec_tab(col_idx).col_type IN(
+                dbms_types.typecode_varchar
+                ,dbms_types.typecode_varchar2
+            )THEN
+            -- VARCHAR2
+                dbms_sql.define_column(
+                    l_cursor_id
+                    ,col_idx
+                    ,l_file_name
+                    ,255
+                );
+            ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_blob THEN
+            -- NUMBER
+                dbms_sql.define_column(
+                    l_cursor_id
+                    ,col_idx
+                    ,l_file_content
+                );
+            END IF;
+        END LOOP;
+        -- execute the SQL query
+
+        l_execute_output := dbms_sql.execute(l_cursor_id);
+        -- fetch rows
+        WHILE dbms_sql.fetch_rows(l_cursor_id)> 0 LOOP
+            FOR col_idx IN 1..l_col_count LOOP
+            -- handle different data types
+                IF l_rec_tab(col_idx).col_type IN(
+                    dbms_types.typecode_varchar
+                    ,dbms_types.typecode_varchar2
+                )THEN
+                -- VARCHAR2
+                    dbms_sql.column_value(
+                        l_cursor_id
+                        ,col_idx
+                        ,l_file_name
+                    );
+                ELSIF l_rec_tab(col_idx).col_type = dbms_types.typecode_blob THEN
+                -- BLOB
+                    dbms_sql.column_value(
+                        l_cursor_id
+                        ,col_idx
+                        ,l_file_content
+                    );
+                END IF;
+            END LOOP;
+
+            apex_zip.add_file(
+                p_zipped_blob   => l_zip_file
+                ,p_file_name     => l_file_name
+                ,p_content       => l_file_content
+            );
+
+        END LOOP;
+
+        -- close cursor
+        dbms_sql.close_cursor(l_cursor_id);
+
+        BEGIN
+            apex_zip.finish(p_zipped_blob => l_zip_file);
+        EXCEPTION WHEN VALUE_ERROR THEN
+        -- if there is no file added so far, then apex_zip.finish raises VALUE_ERROR
+        -- do nothing
+            NULL;
+        END;
+        RETURN l_zip_file;
+    END get_zip;
+
 END apex_util_wrap;
