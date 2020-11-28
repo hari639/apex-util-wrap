@@ -11,6 +11,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
 -- 04-OCT-2020 Srihari Ravva             Added send_mail procedure,
 --                                       removed p_template_static_id parameter for merge_placeholders function
 -- 26-OCT-2020 Srihari Ravva             Added download_blob procedure and zip related functions
+-- 28-NOV-2020 Srihari Ravva             Added get_item_help, get_ig_col_help functions
 --
 
   -- Name             : get_html_table
@@ -653,7 +654,7 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
     BEGIN
         IF p_blob_content IS NULL THEN
         -- do nothing
-          RETURN;
+            return;
         END IF;
       -- print headers for file download
         sys.htp.init;
@@ -703,12 +704,14 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
         END LOOP;
 
         BEGIN
-            apex_zip.finish(p_zipped_blob => l_zip_file);
-        EXCEPTION WHEN VALUE_ERROR THEN
+            apex_zip.finish(p_zipped_blob   => l_zip_file);
+        EXCEPTION
+            WHEN value_error THEN
         -- if there is no file added so far, then apex_zip.finish raises VALUE_ERROR
         -- do nothing
-            NULL;
+                NULL;
         END;
+
         RETURN l_zip_file;
     END get_zip_internal;
 
@@ -878,16 +881,109 @@ CREATE OR REPLACE PACKAGE BODY apex_util_wrap AS
         END LOOP;
 
         -- close cursor
-        dbms_sql.close_cursor(l_cursor_id);
 
+        dbms_sql.close_cursor(l_cursor_id);
         BEGIN
-            apex_zip.finish(p_zipped_blob => l_zip_file);
-        EXCEPTION WHEN VALUE_ERROR THEN
+            apex_zip.finish(p_zipped_blob   => l_zip_file);
+        EXCEPTION
+            WHEN value_error THEN
         -- if there is no file added so far, then apex_zip.finish raises VALUE_ERROR
         -- do nothing
-            NULL;
+                NULL;
         END;
+
         RETURN l_zip_file;
     END get_zip;
+
+  -- Name             : get_item_help
+  -- Description      : function to get Page Item's help text
+  -- Parameters       : p_item_name - Page Item Name
+  --                    p_page_id - page number, default to current page
+  --                    p_application_id - application number, default to current application
+  -- Returns          : Item's help text
+  --
+
+    FUNCTION get_item_help(
+        p_item_name        IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2 IS
+        l_help_text   apex_application_page_items.item_help_text%TYPE;
+    BEGIN
+        SELECT
+            item_help_text
+        INTO l_help_text
+        FROM
+            apex_application_page_items
+        WHERE
+            item_name = p_item_name
+            AND page_id = coalesce(
+                p_page_id
+                ,nv(
+                    'APP_PAGE_ID'
+                )
+            )
+            AND application_id = coalesce(
+                p_application_id
+                ,nv(
+                    'APP_ID'
+                )
+            );
+
+        RETURN l_help_text;
+    EXCEPTION
+        WHEN no_data_found THEN
+            RETURN 'Invalid Item Name ' || p_item_name;
+    END get_item_help;
+
+  -- Name             : get_ig_col_help
+  -- Description      : function to get Interactive Grid Column help text
+  -- Parameters       : p_col_static_id - IG Column's Static ID
+  --                    p_reg_static_id - IG Region's Static ID
+  --                    p_page_id - page number, default to current page
+  --                    p_application_id - application number, default to current application
+  -- Returns          : Interactive Grid Column's help text
+  --
+
+    FUNCTION get_ig_col_help(
+        p_col_static_id    IN                 VARCHAR2
+        ,p_reg_static_id    IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2 IS
+        l_help_text   apex_appl_page_ig_columns.help_text%TYPE;
+    BEGIN
+        SELECT
+            cols.help_text
+        INTO l_help_text
+        FROM
+            apex_appl_page_ig_columns cols
+            JOIN apex_application_page_regions reg
+            ON(reg.region_id = cols.region_id)
+        WHERE
+            cols.static_id = p_col_static_id
+            AND reg.static_id = p_reg_static_id
+            AND cols.page_id = coalesce(
+                p_page_id
+                ,nv(
+                    'APP_PAGE_ID'
+                )
+            )
+            AND cols.application_id = coalesce(
+                p_application_id
+                ,nv(
+                    'APP_ID'
+                )
+            );
+
+        RETURN l_help_text;
+    EXCEPTION
+        WHEN no_data_found THEN
+            RETURN 'Invalid Input. Column Static ID '
+                   || p_col_static_id
+                   || ', Region Static ID '
+                   || p_reg_static_id
+                   || ' do not exists.';
+    END get_ig_col_help;
 
 END apex_util_wrap;

@@ -713,6 +713,68 @@ BEGIN
 END;
 ```
 
+**GET_ITEM_HELP Function**
+
+Function to get Page Item's help text
+
+_Syntax_
+
+```sql
+    FUNCTION get_item_help(
+        p_item_name        IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2;
+```
+
+_Parameters_
+
+  | Parameter | Description |
+  | ------ | ------ |
+  |p_item_name|Page Item Name|
+  |p_page_id|Page number, default to current page|
+  |p_application_id|Application number, default to current application|
+
+_Example_
+
+```sql
+-- get item help defined for P1_FIRST_NAME item, in page 1, application 100 
+SELECT get_item_help('P1_FIRST_NAME',1,100) help_text
+FROM DUAL
+```
+
+**GET_IG_COL_HELP Function**
+
+Function to get Interactive Grid Column's help text
+
+_Syntax_
+
+```sql
+    FUNCTION get_ig_col_help(
+        p_col_static_id    IN                 VARCHAR2
+        ,p_reg_static_id    IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2;
+```
+
+_Parameters_
+
+  | Parameter | Description |
+  | ------ | ------ |
+  |p_col_static_id|Interactive Grid Column's Static ID|
+  |p_reg_static_id|Interactive Grid Region's Static ID|  
+  |p_page_id|Page number, default to current page|
+  |p_application_id|Application number, default to current application|
+
+_Example_
+
+```sql
+-- get column help defined for "salary" column (salary is column static id) in "emp" region (emp is region static id), in page 1, application 100 
+SELECT get_ig_col_help('salary','emp',1,100) help_text
+FROM DUAL
+```
+
 ## How to Install Demo Application
   * Import the application into APEX workspace and follow the wizard. This application also contains supporting objects and sample data.
   * Demo APEX application exported from APEX version 20.2
@@ -730,5 +792,6 @@ END;
 
 ## Further Reading
 
-[Email Templates with Tabular Data](https://srihariravva.blogspot.com/2020/05/email-templates-tabular-data.html)
-[Generating ZIP files in Oracle APEX](https://srihariravva.blogspot.com/2020/10/generating-zip-files-in-oracle-apex.html)
+* [Email Templates with Tabular Data](https://srihariravva.blogspot.com/2020/05/email-templates-tabular-data.html)
+* [Generating ZIP files in Oracle APEX](https://srihariravva.blogspot.com/2020/10/generating-zip-files-in-oracle-apex.html)
+* [Displaying Help Text](https://srihariravva.blogspot.com/2020/11/oracle-apex-displaying-help-text.html)

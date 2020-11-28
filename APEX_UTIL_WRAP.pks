@@ -11,6 +11,7 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
 -- 04-OCT-2020 Srihari Ravva             Added send_mail procedure,
 --                                       removed p_template_static_id parameter for merge_placeholders function
 -- 26-OCT-2020 Srihari Ravva             Added download_blob procedure and zip related functions
+-- 28-NOV-2020 Srihari Ravva             Added get_item_help, get_ig_col_help functions
 --
 
   -- define global variables and constants
@@ -189,5 +190,35 @@ CREATE OR REPLACE PACKAGE apex_util_wrap AS
         ,p_bind_var_names    IN                  apex_t_varchar2
         ,p_bind_var_values   IN                  apex_t_varchar2
     )RETURN BLOB;
+
+  -- Name             : get_item_help
+  -- Description      : function to get Page Item's help text
+  -- Parameters       : p_item_name - Page Item Name
+  --                    p_page_id - Page number, default to current page
+  --                    p_application_id - Application number, default to current application
+  -- Returns          : Item's help text
+  --
+
+    FUNCTION get_item_help(
+        p_item_name        IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2;
+
+  -- Name             : get_ig_col_help
+  -- Description      : function to get Interactive Grid Column help text
+  -- Parameters       : p_col_static_id - IG Column's Static ID
+  --                    p_reg_static_id - IG Region's Static ID
+  --                    p_page_id - Page number, default to current page
+  --                    p_application_id - Application number, default to current application
+  -- Returns          : Interactive Grid Column's help text
+  --
+
+    FUNCTION get_ig_col_help(
+        p_col_static_id    IN                 VARCHAR2
+        ,p_reg_static_id    IN                 VARCHAR2
+        ,p_page_id          IN                 NUMBER DEFAULT NULL
+        ,p_application_id   IN                 NUMBER DEFAULT NULL
+    )RETURN VARCHAR2;
 
 END apex_util_wrap;
